@@ -52,7 +52,8 @@ export class DBService {
 
   async updateUser(id: number, updates: Partial<User>): Promise<void> {
     const userRef = doc(firestore, 'users', id.toString());
-    await updateDoc(userRef, updates);
+    const { setDoc } = await import('firebase/firestore');
+    await setDoc(userRef, updates, { merge: true });
   }
 
   async removeUser(id: number): Promise<void> {

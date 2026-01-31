@@ -37,43 +37,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Real-time synchronization
   useEffect(() => {
     // 1. Users Listener
-    const unsubUsers = onSnapshot(query(collection(firestore, 'users'), orderBy('id')), (snap) => {
-      const users = snap.docs.map(d => ({ ...d.data(), id: d.data().id } as User));
-      setData(prev => ({ ...prev, users }));
+    const unsubUsers = onSnapshot(
+      query(collection(firestore, 'users'), orderBy('id')),
+      (snap) => {
+        const users = snap.docs.map(d => ({ ...d.data(), id: d.data().id } as User));
+        setData(prev => ({ ...prev, users }));
 
-      // Update current session user in real-time
-      const savedUserId = localStorage.getItem('lsi_session_uid');
-      if (savedUserId) {
-        const found = users.find(u => u.id === parseInt(savedUserId));
-        if (found && found.is_active) {
-          setUser(found);
-        } else if (found && !found.is_active) {
-          // Auto logout if deactivated
-          if (localStorage.getItem('lsi_session_uid')) { // Only if currently logged in
+        // Update current session user in real-time
+        const savedUserId = localStorage.getItem('lsi_session_uid');
+        if (savedUserId) {
+          const found = users.find(u => u.id === parseInt(savedUserId));
+          if (found && found.is_active) {
+            setUser(found);
+          } else if (found && !found.is_active) {
+            // Auto logout if deactivated
+            setUser(null);
+            localStorage.removeItem('lsi_session_uid');
+          } else if (!found) {
+            // User was deleted - force logout
             setUser(null);
             localStorage.removeItem('lsi_session_uid');
           }
         }
+      },
+      (error) => {
+        console.error('Error in users listener:', error);
+        setLoading(false);
       }
-    });
+    );
 
     // 2. Leads Listener
-    const unsubLeads = onSnapshot(query(collection(firestore, 'leads'), orderBy('id', 'desc')), (snap) => {
-      const leads = snap.docs.map(d => d.data() as Lead);
-      setData(prev => ({ ...prev, leads }));
-    });
+    const unsubLeads = onSnapshot(
+      query(collection(firestore, 'leads'), orderBy('id', 'desc')),
+      (snap) => {
+        const leads = snap.docs.map(d => d.data() as Lead);
+        setData(prev => ({ ...prev, leads }));
+      },
+      (error) => {
+        console.error('Error in leads listener:', error);
+      }
+    );
 
     // 3. Assignments Listener
-    const unsubAssigns = onSnapshot(collection(firestore, 'assignments'), (snap) => {
-      const assignments = snap.docs.map(d => d.data() as LeadAssignment);
-      setData(prev => ({ ...prev, assignments }));
-    });
+    const unsubAssigns = onSnapshot(
+      collection(firestore, 'assignments'),
+      (snap) => {
+        const assignments = snap.docs.map(d => d.data() as LeadAssignment);
+        setData(prev => ({ ...prev, assignments }));
+      },
+      (error) => {
+        console.error('Error in assignments listener:', error);
+      }
+    );
 
     // 4. Sales Listener
-    const unsubSales = onSnapshot(collection(firestore, 'sales'), (snap) => {
-      const sales = snap.docs.map(d => d.data() as Sale);
-      setData(prev => ({ ...prev, sales }));
-    });
+    const unsubSales = onSnapshot(
+      collection(firestore, 'sales'),
+      (snap) => {
+        const sales = snap.docs.map(d => d.data() as Sale);
+        setData(prev => ({ ...prev, sales }));
+      },
+      (error) => {
+        console.error('Error in sales listener:', error);
+      }
+    );
 
     // Initial loading done when first snapshots arrive (approximate)
     // We'll set loading to false after a short timeout to allow initial data to populate

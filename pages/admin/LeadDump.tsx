@@ -12,13 +12,15 @@ export const LeadDump: React.FC = () => {
   const [parsedLeads, setParsedLeads] = useState<any[]>([]);
   const [strategy, setStrategy] = useState<DistributionStrategy>('equal');
   const [showSummary, setShowSummary] = useState<{ assigned: number; skipped: number } | null>(null);
+  const [isDistributing, setIsDistributing] = useState(false);
+  const [error, setError] = useState('');
 
   const handleParse = () => {
     const lines = pasteData.split('\n').filter(line => line.trim());
-    
+
     const leads = lines.map((line, idx) => {
       const parts = line.split(/\t|,| {2,}/).map(s => s?.trim()).filter(Boolean);
-      
+
       let name = 'Unknown';
       let mobile = '';
       let location = 'Other';
@@ -39,9 +41,9 @@ export const LeadDump: React.FC = () => {
             name = nameParts.join(' ');
           }
         }
-        
+
         if (!name || name === 'Unknown') {
-            name = nameParts[0] || 'Unknown';
+          name = nameParts[0] || 'Unknown';
         }
 
         const locationParts = parts.slice(mobileIndex + 1);
@@ -66,23 +68,38 @@ export const LeadDump: React.FC = () => {
   const handleDistribute = async () => {
     if (!user) return;
     const validLeads = parsedLeads.filter(l => l.valid);
-    
-    // Fixed: db.addLead is async, use Promise.all to create leads before distribution
-    const createdLeads = await Promise.all(validLeads.map(l => db.addLead({
-      customer_name: l.customer_name,
-      customer_mobile: l.customer_mobile,
-      location: l.location,
-      source: 'Smart Dump',
-      process_type: l.process_type,
-      status: 'New'
-    })));
 
-    // Fixed: distributeLeads is now async
-    const result = await distributeLeads(createdLeads, strategy, user.id);
-    setShowSummary(result);
-    setParsedLeads([]);
-    setPasteData('');
-    await refreshAllData();
+    if (validLeads.length === 0) {
+      setError('No valid leads to distribute. Please check phone numbers.');
+      return;
+    }
+
+    setIsDistributing(true);
+    setError('');
+
+    try {
+      // Fixed: db.addLead is async, use Promise.all to create leads before distribution
+      const createdLeads = await Promise.all(validLeads.map(l => db.addLead({
+        customer_name: l.customer_name,
+        customer_mobile: l.customer_mobile,
+        location: l.location,
+        source: 'Smart Dump',
+        process_type: l.process_type,
+        status: 'New'
+      })));
+
+      // Fixed: distributeLeads is now async
+      const result = await distributeLeads(createdLeads, strategy, user.id);
+      setShowSummary(result);
+      setParsedLeads([]);
+      setPasteData('');
+      await refreshAllData();
+    } catch (err) {
+      console.error('Distribution error:', err);
+      setError('Failed to distribute leads. Please try again.');
+    } finally {
+      setIsDistributing(false);
+    }
   };
 
   return (
@@ -110,7 +127,7 @@ export const LeadDump: React.FC = () => {
               onChange={(e) => setPasteData(e.target.value)}
             />
           </div>
-          
+
           <Button onClick={handleParse} className="w-full py-5 rounded-[24px] text-lg font-black shadow-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] transition-all" disabled={!pasteData.trim()}>
             Analyze & Extract Leads
           </Button>
@@ -126,7 +143,7 @@ export const LeadDump: React.FC = () => {
             </div>
             <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-2xl border border-gray-100 w-full md:w-auto">
               <span className="text-[10px] font-black uppercase text-gray-400 ml-2">Strategy</span>
-              <select 
+              <select
                 className="bg-white text-xs font-black uppercase tracking-widest rounded-xl border-none focus:ring-2 focus:ring-indigo-500 py-2 px-4 shadow-sm"
                 value={strategy}
                 onChange={(e) => setStrategy(e.target.value as DistributionStrategy)}
@@ -164,12 +181,12 @@ export const LeadDump: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             <Button onClick={() => setParsedLeads([])} variant="secondary" className="py-4 font-black text-xs uppercase tracking-[0.2em] rounded-2xl">
-                Discard All
-             </Button>
-             <Button onClick={handleDistribute} variant="success" className="py-4 text-lg font-black rounded-2xl shadow-xl shadow-emerald-100 bg-emerald-600 hover:bg-emerald-700">
-                Push to Team Members
-             </Button>
+            <Button onClick={() => setParsedLeads([])} variant="secondary" className="py-4 font-black text-xs uppercase tracking-[0.2em] rounded-2xl">
+              Discard All
+            </Button>
+            <Button onClick={handleDistribute} variant="success" className="py-4 text-lg font-black rounded-2xl shadow-xl shadow-emerald-100 bg-emerald-600 hover:bg-emerald-700">
+              Push to Team Members
+            </Button>
           </div>
         </Card>
       )}
@@ -179,9 +196,9 @@ export const LeadDump: React.FC = () => {
           <div className="text-center space-y-6 py-4">
             <div className={`w-24 h-24 rounded-[32px] flex items-center justify-center mx-auto shadow-inner ${showSummary.skipped > 0 ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
               {showSummary.skipped > 0 ? (
-                 <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                 </svg>
+                <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
               ) : (
                 <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
