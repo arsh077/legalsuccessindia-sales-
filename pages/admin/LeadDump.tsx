@@ -15,6 +15,14 @@ export const LeadDump: React.FC = () => {
   const [isDistributing, setIsDistributing] = useState(false);
   const [error, setError] = useState('');
 
+  // Sanitize input to prevent XSS
+  const sanitizeInput = (input: string): string => {
+    return input
+      .replace(/[<>"']/g, '') // Remove potential HTML/script characters
+      .trim()
+      .slice(0, 200); // Limit length
+  };
+
   const handleParse = () => {
     const lines = pasteData.split('\n').filter(line => line.trim());
 
@@ -54,9 +62,9 @@ export const LeadDump: React.FC = () => {
 
       return {
         id: idx,
-        customer_name: name || 'Unknown',
+        customer_name: sanitizeInput(name || 'Unknown'),
         customer_mobile: mobile || '',
-        location: location || 'Other',
+        location: sanitizeInput(location || 'Other'),
         process_type: 'Legal Service',
         valid: isValid
       };

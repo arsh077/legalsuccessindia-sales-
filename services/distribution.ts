@@ -1,21 +1,33 @@
 
 import { db } from './db';
 import { Lead, User, UserRole } from '../types';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 export type DistributionStrategy = 'equal' | 'target-based' | 'skill-based';
 
 // Fixed: distributeLeads is now async to handle Promise-based DB calls
 export const distributeLeads = async (
-  leadsToDistribute: Lead[], 
-  strategy: DistributionStrategy, 
+  leadsToDistribute: Lead[],
+  strategy: DistributionStrategy,
   adminId: number
 ) => {
   const today = new Date().toISOString().split('T')[0];
-  
-  // Fixed: Await the Promise returned by getAssignments()
-  const assignments = await db.getAssignments();
-  const activeAssignments = assignments.filter(a => a.active && a.assigned_at.startsWith(today));
-  
+
+  // Fixed: Query only today's assignments instead of all
+  // Note: Firestore doesn't support startsWith, so we query by range
+  const startOfDay = `${today}T00:00:00`;
+  const endOfDay = `${today}T23:59:59`;
+
+  const assignmentsQuery = query(
+    collection(await import('../src/lib/firebase').then(m => m.db), 'assignments'),
+    where('active', '==', true),
+    where('assigned_at', '>=', startOfDay),
+    where('assigned_at', '<=', endOfDay)
+  );
+
+  const assignmentsSnap = await getDocs(assignmentsQuery);
+  const activeAssignments = assignmentsSnap.docs.map(d => d.data() as any);
+
   // 1. Get all active employees and calculate their REAL-TIME assignment state
   // Fixed: Await the Promise returned by getUsers()
   const users = await db.getUsers();
@@ -36,7 +48,7 @@ export const distributeLeads = async (
   }
 
   const results: { employee_id: number; lead_id: number }[] = [];
-  
+
   // Sort leads for processing
   const leadsQueue = [...leadsToDistribute];
 
@@ -51,12 +63,12 @@ export const distributeLeads = async (
       // Priority 1: Seniors get priority over New
       if (a.experience_level === 'senior' && b.experience_level === 'new') return -1;
       if (a.experience_level === 'new' && b.experience_level === 'senior') return 1;
-      
+
       // Priority 2: EQUAL DIVISION (Least assigned today gets it next)
       if (a.assigned_count !== b.assigned_count) {
         return a.assigned_count - b.assigned_count;
       }
-      
+
       // Priority 3: If counts are same, pick the one with more target left
       return b.remaining_capacity - a.remaining_capacity;
     });
@@ -71,12 +83,12 @@ export const distributeLeads = async (
     }
 
     const chosen = candidatePool[0];
-    
+
     // Safety check
     if (!chosen) continue;
 
     results.push({ employee_id: chosen.id, lead_id: lead.id });
-    
+
     // Update local tracker for next iteration in this loop
     chosen.assigned_count++;
     chosen.remaining_capacity--;
@@ -97,15 +109,15 @@ export const distributeLeads = async (
       action_type: 'LEAD_ASSIGNED',
       entity_type: 'lead',
       entity_id: res.lead_id,
-      new_value: { 
+      new_value: {
         assigned_to: res.employee_id,
         reason: 'Seniority Balanced Round-Robin'
       }
     });
   }
 
-  return { 
-    assigned: results.length, 
-    skipped: leadsToDistribute.length - results.length 
+  return {
+    assigned: results.length,
+    skipped: leadsToDistribute.length - results.length
   };
 };

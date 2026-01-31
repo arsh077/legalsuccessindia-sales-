@@ -34,6 +34,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sales: [] as Sale[]
   });
 
+  const [readyStates, setReadyStates] = useState({
+    users: false,
+    leads: false,
+    assignments: false,
+    sales: false
+  });
+
   // Real-time synchronization
   useEffect(() => {
     // 1. Users Listener
@@ -42,6 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (snap) => {
         const users = snap.docs.map(d => ({ ...d.data(), id: d.data().id } as User));
         setData(prev => ({ ...prev, users }));
+        setReadyStates(prev => ({ ...prev, users: true }));
 
         // Update current session user in real-time
         const savedUserId = localStorage.getItem('lsi_session_uid');
@@ -72,6 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (snap) => {
         const leads = snap.docs.map(d => d.data() as Lead);
         setData(prev => ({ ...prev, leads }));
+        setReadyStates(prev => ({ ...prev, leads: true }));
       },
       (error) => {
         console.error('Error in leads listener:', error);
@@ -84,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (snap) => {
         const assignments = snap.docs.map(d => d.data() as LeadAssignment);
         setData(prev => ({ ...prev, assignments }));
+        setReadyStates(prev => ({ ...prev, assignments: true }));
       },
       (error) => {
         console.error('Error in assignments listener:', error);
@@ -96,6 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (snap) => {
         const sales = snap.docs.map(d => d.data() as Sale);
         setData(prev => ({ ...prev, sales }));
+        setReadyStates(prev => ({ ...prev, sales: true }));
       },
       (error) => {
         console.error('Error in sales listener:', error);
@@ -119,10 +130,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  // Track when all data is ready
+  useEffect(() => {
+    if (readyStates.users && readyStates.leads && readyStates.assignments && readyStates.sales) {
+      setLoading(false);
+      setIsSyncing(false);
+    }
+  }, [readyStates]);
+
   const refreshAllData = async () => {
     // No-op mainly, as listeners handle it. 
     // Could be used to force a specific check if needed, but not with onSnapshot
-    console.log("Data auto-synced via Firestore");
   };
 
   const login = async (email: string, password: string) => {

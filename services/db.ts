@@ -10,7 +10,6 @@ import {
   query,
   where,
   getDoc,
-  Timestamp,
   orderBy,
   limit
 } from 'firebase/firestore';
