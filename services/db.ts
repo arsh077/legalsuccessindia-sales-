@@ -1,5 +1,5 @@
 
-import { db as firestore } from '../lib/firebase';
+import { db as firestore } from '../src/lib/firebase';
 import {
   collection,
   getDocs,

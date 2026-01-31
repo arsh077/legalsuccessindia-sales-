@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Lead, LeadAssignment, Sale, AuditLog } from '../types';
 import { db } from '../services/db'; // Keep this for login/manual async ops if needed, or direct firestore
-import { db as firestore } from '../lib/firebase';
+import { db as firestore } from '../src/lib/firebase';
 import { collection, onSnapshot, query, orderBy, where, addDoc } from 'firebase/firestore';
 
 interface AuthContextType {
